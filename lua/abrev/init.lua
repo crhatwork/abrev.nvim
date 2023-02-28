@@ -1,6 +1,6 @@
 local M = {}
 
----parse a string in to parts to proses in to variants
+---parse a string in to parts to process in to variants
 ---
 ---@param str string a string to make in to a parts table
 ---@return table tmp a table containing the parts of a word
@@ -82,6 +82,8 @@ end
 
 ---make the variants from the given parts
 ---
+---TODO: this needs a lot of work around unmatching lhs and rhs abbreviations
+---
 ---@param lhs table the left hand side parts
 ---@param rhs table the right hand side parts
 ---@return table
@@ -121,8 +123,8 @@ local function mk_variants(lhs, rhs)
     return tmp
 end
 
----make all the alternatives like lower and uppercase and return a table to then
----make the abbreviations
+---make all the alternatives lower, uppercase and capitalized
+---in to a table keyed by lhs and rhs as value
 ---
 ---@param tbl table a table with all the lhs and rhs variants
 ---@return table tmp a table keyed my lhs
@@ -173,6 +175,7 @@ local function mk_abbreviations(to_make)
 end
 
 ---take a table of alternatives and make abbreviations
+---
 ---@param alternatives table a table of alternatives, the key is lhs and rhs is the target
 local function call_vim_abrev(alternatives)
     for k, v in pairs(alternatives) do
@@ -180,6 +183,9 @@ local function call_vim_abrev(alternatives)
     end
 end
 
+---the setup function
+---
+---@param opts table the options for plugin
 M.setup = function(opts)
     assert(type(opts) == "table", "opts needs to be a table")
 
