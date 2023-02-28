@@ -1,25 +1,15 @@
 local M = {}
 
-local function dump(o)
-    if type(o) == 'table' then
-        local s = '{ '
-        for k, v in pairs(o) do
-            if type(k) ~= 'number' then k = '"' .. k .. '"' end
-            s = s .. '[' .. k .. '] = ' .. dump(v) .. ','
-        end
-        return s .. '} '
-    else
-        return '"' .. tostring(o) .. '"'
-    end
-end
-
-
+---parse a string in to parts to proses in to variants
+---
+---@param str string a string to make in to a parts table
+---@return table tmp a table containing the parts of a word
 local function parse_str(str)
     local tbl = {}
 
     local start = 0
 
-    while start < str:len() do
+    while start <= str:len() do
         local part = str:sub(start, str:len())
 
         local start_idx, end_idx = part:find("{.-}")
@@ -47,13 +37,22 @@ local function parse_str(str)
 
         table.insert(tbl, tmp)
 
-        start = start + end_idx + 1
+        start = start + end_idx
+
+        if start_idx ~= 1 then
+            start = start + 1
+        end
     end
 
     return tbl
 end
 
-local function add_to_tbl(tbl, to_add)
+---take items from a `tbl` and add values from `to_add` making a new table
+---
+---@param tbl table a table to copy the values from
+---@param to_add string|table a value or values to copy to a new table
+---@return table tmp a table that the values will be copied it to
+local function add_value(tbl, to_add)
     local tmp = {}
 
     if not next(tbl) then
@@ -81,10 +80,16 @@ local function add_to_tbl(tbl, to_add)
     return tmp
 end
 
+---make the variants from the given parts
+---
+---@param lhs table the left hand side parts
+---@param rhs table the right hand side parts
+---@return table
 local function mk_variants(lhs, rhs)
-    assert(#lhs >= #rhs, "rhs should not be larger then lhs")
-    local tmp = { lhs = {}, rhs = {} }
+    assert(#rhs == 1 or #lhs == #rhs,
+        "lhs and rhs should be the same length or rhs should be one string")
 
+    local tmp = { lhs = {}, rhs = {} }
 
     if #rhs == 1 then
         table.insert(tmp.rhs, rhs[1])
@@ -93,18 +98,22 @@ local function mk_variants(lhs, rhs)
     for i = 1, #lhs do
         local l = lhs[i]
 
-        tmp.lhs = add_to_tbl(tmp.lhs, l)
+        tmp.lhs = add_value(tmp.lhs, l)
 
         if #rhs ~= 1 then
             local r = rhs[i]
-            if type(rhs[i]) == "table" then
+
+            if type(r) == "table" then
+                assert(type(l) == "table",
+                    "rhs variants should a corresponding lhs variants")
+
                 if not next(r) or #r <= 1 then
-                    tmp.rhs = add_to_tbl(tmp.rhs, l)
+                    tmp.rhs = add_value(tmp.rhs, l)
                 else
-                    tmp.rhs = add_to_tbl(tmp.rhs, r)
+                    tmp.rhs = add_value(tmp.rhs, r)
                 end
             else
-                tmp.rhs = add_to_tbl(tmp.rhs, r)
+                tmp.rhs = add_value(tmp.rhs, r)
             end
         end
     end
@@ -112,8 +121,14 @@ local function mk_variants(lhs, rhs)
     return tmp
 end
 
+---make all the alternatives like lower and uppercase and return a table to then
+---make the abbreviations
+---
+---@param tbl table a table with all the lhs and rhs variants
+---@return table tmp a table keyed my lhs
 local function mk_alternatives(tbl)
     local tmp = {}
+
     local lhs = tbl.lhs
     local rhs = tbl.rhs
 
@@ -126,8 +141,9 @@ local function mk_alternatives(tbl)
 
         tmp[lhs[i]] = rhs[rhs_idx]
 
-        tmp[string.upper(lhs[i])] = string.upper(rhs[rhs_idx])
+        tmp[string.lower(lhs[i])] = string.lower(rhs[rhs_idx])
 
+        tmp[string.upper(lhs[i])] = string.upper(rhs[rhs_idx])
 
         local cap_l = string.upper(lhs[i]:sub(1, 1))
         local cap_r = string.upper(rhs[rhs_idx]:sub(1, 1))
@@ -141,6 +157,10 @@ local function mk_alternatives(tbl)
     return tmp
 end
 
+---make abbreviations from lhs and rhs strings
+---
+---@param to_make table a table containing the lhs and rhs string to make in to abbreviations
+---@return table alternatives abbreviations to be used with vim.cmd("abbreviate "..)
 local function mk_abbreviations(to_make)
     assert(to_make[1] and to_make[2], "abbreviations needs a lhs and rhs")
 
@@ -152,6 +172,8 @@ local function mk_abbreviations(to_make)
     return mk_alternatives(variants)
 end
 
+---take a table of alternatives and make abbreviations
+---@param alternatives table a table of alternatives, the key is lhs and rhs is the target
 local function call_vim_abrev(alternatives)
     for k, v in pairs(alternatives) do
         vim.cmd("abbreviate " .. k .. " " .. v)
@@ -171,6 +193,7 @@ M.setup = function(opts)
 
     for _, item in ipairs(opts.abrevs) do
         local abbreviations = mk_abbreviations(item)
+
         call_vim_abrev(abbreviations)
     end
 end
